@@ -23,7 +23,7 @@ cd /home/fhshao/PeRL/
 
 
 unset WANDB_DISABLED
-OUTPUT_DIR=outputs/grpo_lora_qwen2.5_0.5b_$(date +%Y%m%d_%H%M%S)
+OUTPUT_DIR=outputs/$SLURM_JOB_NAME-$(date +%Y%m%d-%H%M%S)
 LOG_FILE=${OUTPUT_DIR}/output.log
 
 mkdir -p ${OUTPUT_DIR}
