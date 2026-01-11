@@ -27,6 +27,7 @@ OUTPUT_DIR=outputs/$SLURM_JOB_NAME-$(date +%Y%m%d-%H%M%S)
 LOG_FILE=${OUTPUT_DIR}/output.log
 
 mkdir -p ${OUTPUT_DIR}
+touch ${OUTPUT_DIR}/$SLURM_JOB_ID
 
 CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \
     accelerate launch \
