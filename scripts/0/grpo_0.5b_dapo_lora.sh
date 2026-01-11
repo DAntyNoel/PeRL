@@ -15,6 +15,8 @@ unset ROCR_VISIBLE_DEVICES
 
 export PATH=/data1/public/cuda/cuda-12.8/bin:$PATH
 export LD_LIBRARY_PATH=/data1/public/cuda/cuda-12.8/lib64/:$LD_LIBRARY_PATH
+echo $SLURM_JOB_GPUS
+nvidia-smi
 
 set -xeuo pipefail
 cd /home/fhshao/PeRL/
@@ -26,7 +28,7 @@ LOG_FILE=${OUTPUT_DIR}/output.log
 
 mkdir -p ${OUTPUT_DIR}
 
-CUDA_VISIBLE_DEVICES=$(echo $SLURM_JOB_GPUS) ACCELERATE_LOG_LEVEL=info \
+CUDA_VISIBLE_DEVICES=0,1,2,3 ACCELERATE_LOG_LEVEL=info \
     accelerate launch \
     --main_process_port 29501 \
     --config_file scripts/trl/accelerate/ds_zero2_4gpu.yaml \
