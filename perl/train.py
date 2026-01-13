@@ -11,6 +11,7 @@ from fire import Fire
 from perl.utils.logging import init_logger, logger
 from perl.data import load_dataset
 from perl.config.config import TrainConfig
+import inspect
 
 def fuzzy_jobs(
     args: TrainConfig
@@ -94,10 +95,68 @@ def train(
 
     # 3. configure lora
     if args.peft.use_peft:
-        logger.info(f"Detected PEFT configuration, configuring lora")
-        from perl.lora.adapter import apply_lora
-        optimizer, model = apply_lora(model, args)
-        logger.info(f"Lora configured successfully")
+        from perl.lora.adapter import apply_peft, PEFT_TYPE_TO_FUNCTION_MAPPING
+        peft_type = getattr(args.peft, "type", "lora")
+        logger.info(
+            "[PEFT] Detected configuration -> type=%s, r=%s, alpha=%s, dropout=%s, targets=%s",
+            peft_type,
+            getattr(args.peft, "r", None),
+            getattr(args.peft, "lora_alpha", None),
+            getattr(args.peft, "lora_dropout", None),
+            getattr(args.peft, "target_modules", None),
+        )
+
+        # Log the loader function and its source snippet for traceability
+        loader_fn = PEFT_TYPE_TO_FUNCTION_MAPPING.get(peft_type)
+        if loader_fn is not None:
+            try:
+                fn_file = inspect.getsourcefile(loader_fn)
+                fn_src = inspect.getsource(loader_fn)
+                # Keep snippet reasonably short
+                snippet_lines = fn_src.splitlines()
+                preview = "\n".join(snippet_lines[:80])
+                logger.info(
+                    "[PEFT] Loader function: %s (%s)\n-----8<----- SOURCE BEGIN -----8<-----\n%s\n-----8<----- SOURCE END -----8<-----",
+                    f"{loader_fn.__module__}.{loader_fn.__name__}",
+                    fn_file,
+                    preview,
+                )
+            except Exception as e:
+                logger.warning("[PEFT] Failed to inspect loader function: %s", e)
+        else:
+            logger.warning("[PEFT] Unknown peft.type '%s' (no loader function found)", peft_type)
+
+        logger.info("[PEFT] Applying adapters to model…")
+        optimizer, model = apply_peft(model, args)
+
+        # Summarize trainable parameters, especially LoRA params
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = [(n, p) for n, p in model.named_parameters() if p.requires_grad]
+        trainable_count = sum(p.numel() for _, p in trainable_params)
+        # Heuristic: LoRA parameters usually include "lora_" in their names
+        lora_params = [(n, p) for n, p in trainable_params if ("lora_" in n.lower() or "adapter" in n.lower())]
+        lora_count = sum(p.numel() for _, p in lora_params)
+
+        def fmt(n: int) -> str:
+            try:
+                return f"{n:,}"
+            except Exception:
+                return str(n)
+
+        logger.info(
+            "[PEFT] Params -> total=%s, trainable=%s (%.4f%%), lora=%s (%.4f%% of total; %.4f%% of trainable)",
+            fmt(total_params),
+            fmt(trainable_count),
+            100.0 * (trainable_count / max(total_params, 1)),
+            fmt(lora_count),
+            100.0 * (lora_count / max(total_params, 1)),
+            100.0 * (lora_count / max(trainable_count, 1)),
+        )
+
+        # Also list a few representative LoRA parameter names for clarity
+        preview_names = ", ".join([n for n, _ in lora_params[:10]])
+        logger.info("[PEFT] LoRA trainable tensors (sample): %s", preview_names if preview_names else "<none>")
+        logger.info("Lora configured successfully")
 
     # 4.Training configuration
     training_args = GRPOConfig(
