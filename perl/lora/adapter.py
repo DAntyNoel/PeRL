@@ -6,7 +6,12 @@
 from .slicefine import register_slicefine_method
 register_slicefine_method() # register slicefine method to peft
 
+import logging
+
+logger = logging.getLogger('[Adapter]')
+
 def apply_lora(model, args):
+    logger.info(f"Applying standard LoRA with rank={args.peft.r}")
     from peft import LoraConfig, get_peft_model
     config = LoraConfig(
         peft_type="LORA",
@@ -19,6 +24,7 @@ def apply_lora(model, args):
     return None, get_peft_model(model, config)
 
 def apply_dora(model, args):
+    logger.info(f"Applying DoRA with rank={args.peft.r}")
     from peft import LoraConfig, get_peft_model
     config = LoraConfig(
         peft_type="LORA",
@@ -32,16 +38,19 @@ def apply_dora(model, args):
     return None, get_peft_model(model, config)
 
 def apply_vera(model, args):
+    logger.info(f"Applying Vera with rank={args.peft.r}")
     from peft import VeraConfig, get_peft_model
     config = VeraConfig(r=args.peft.r)
     return None, get_peft_model(model, config)
 
 def apply_miss(model, args):
+    logger.info(f"Applying MiSS with rank={args.peft.r}")
     from peft import MissConfig, get_peft_model
     config = MissConfig(r=args.peft.r)
     return None, get_peft_model(model, config)
 
 def apply_pissa(model, args):
+    logger.info(f"Applying PiSSA with rank={args.peft.r}")
     from peft import LoraConfig, get_peft_model
     lora_config = LoraConfig(
         # init_lora_weights="pissa", # Configure the initialization method to "pissa", which may take several minutes to execute SVD on the pre-trained model.
@@ -55,6 +64,8 @@ def apply_pissa(model, args):
     return None, get_peft_model(model, lora_config)
 
 def apply_milora(model, args):
+    logger.info(f"Applying MiLoRA with rank={args.peft.r}")
+    from .milora_dual import add_dual_svd_initialized_lora
     from .milora import add_svd_initialized_lora
     return None, add_svd_initialized_lora(
         model=model,
@@ -62,6 +73,7 @@ def apply_milora(model, args):
     )
 
 def apply_layernorm(model, args):
+    logger.info(f"Applying LayerNorm Tuning")
     from peft import get_peft_model, TaskType, LNTuningConfig
     peft_config = LNTuningConfig(
         task_type=TaskType.CAUSAL_LM,
@@ -69,6 +81,7 @@ def apply_layernorm(model, args):
     return None, get_peft_model(model, peft_config)
 
 def apply_adalora(model, args):
+    logger.info(f"Applying AdaLoRA with rank={args.peft.r}")
     from peft import AdaLoraConfig, get_peft_model
     config = AdaLoraConfig(
         peft_type="ADALORA",
@@ -82,11 +95,13 @@ def apply_adalora(model, args):
     return None, get_peft_model(model, config)
 
 def apply_IA3(model, args):
+    logger.info(f"Applying IA3 Tuning with rank={args.peft.r}")
     from peft import IA3Config, get_peft_model, TaskType
     config = IA3Config(task_type=TaskType.CAUSAL_LM)
     return None, get_peft_model(model, config)
 
 def apply_milora_plus(model, args):
+    logger.info(f"Applying MiLoRA++ with rank={args.peft.r}")
     from .milora_plus import add_svd_initialized_lora
     return None, add_svd_initialized_lora(
         model=model,
@@ -94,6 +109,7 @@ def apply_milora_plus(model, args):
     )
 
 def apply_lorafa(model, args):
+    logger.info(f"Applying LoRA-FA with rank={args.peft.r}")
     from peft import LoraConfig, get_peft_model
     from peft.optimizers import create_lorafa_optimizer
 
@@ -117,6 +133,7 @@ def apply_lorafa(model, args):
     return optimizer, model
 
 def apply_lora_plus(model, args):
+    logger.info(f"Applying LoRA+ with rank={args.peft.r}")
     from peft import LoraConfig, get_peft_model
     from torch.optim import AdamW
     from peft.optimizers import create_loraplus_optimizer
@@ -142,6 +159,7 @@ def apply_lora_plus(model, args):
     return optimizer, model
 
 def apply_slicefine(model, args):
+    logger.info(f"Applying SliceFine with rank={args.peft.r}")
     from .slicefine import SliceFineConfig
     from peft import get_peft_model
     config = SliceFineConfig(
@@ -167,6 +185,7 @@ def apply_slicefine(model, args):
     return None, peft_model
 
 def apply_hra(model, args):
+    logger.info(f"Applying HRA with rank={args.peft.r}")
     from peft import HRAConfig, get_peft_model
     config = HRAConfig(
         r=args.peft.r,
@@ -176,6 +195,7 @@ def apply_hra(model, args):
     return None, get_peft_model(model, config)
 
 def apply_rslora(model, args):
+    logger.info(f"Applying RS-LoRA with rank={args.peft.r}")
     from peft import LoraConfig, get_peft_model
     config = LoraConfig(
         peft_type="LORA",
@@ -187,6 +207,70 @@ def apply_rslora(model, args):
         lora_dropout=args.peft.lora_dropout,
     )
     return None, get_peft_model(model, config)
+
+
+def apply_milora_dual(model, args):
+    logger.info(f"Applying MiLoRA Dual Mode with rank={args.peft.r}")
+    # 导入我们新建的文件
+    from .milora_dual import add_dual_svd_initialized_lora
+    from torch.optim import AdamW
+
+    # 1. 应用双模初始化
+    # 注意：这里会创建 "milora_max" 和 "milora_min" 两个 adapter
+    model = add_dual_svd_initialized_lora(
+        model=model,
+        rank=args.peft.r
+    )
+    
+    # 2. 从 Config 获取特定学习率 (假设你在 Config 中添加了这些字段)
+    # 如果 Config 没设，提供默认 fallback
+    default_lr = args.training.learning_rate
+    lr_max = getattr(args.peft, "lr_max", default_lr)      # Max 模式通常 LR 小一点
+    lr_min = getattr(args.peft, "lr_min", default_lr * 2)  # Min 模式通常 LR 大一点
+    
+    logger.info(f"[Dual Optimizer] Setting LR: Max={lr_max}, Min={lr_min}, Base={default_lr}")
+
+    # 3. 参数分组与过滤
+    # 我们需要把参数分为三组：Max组, Min组, 其他组
+    params_max = []
+    params_min = []
+    params_other = []
+    
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+            
+        if "milora_max" in name:
+            params_max.append(param)
+        elif "milora_min" in name:
+            params_min.append(param)
+        else:
+            params_other.append(param)
+    
+    # 4. 构建优化器参数组
+    optimizer_grouped_parameters = [
+        {
+            "params": params_max,
+            "lr": lr_max,
+            "name": "milora_max_group"
+        },
+        {
+            "params": params_min,
+            "lr": lr_min,
+            "name": "milora_min_group"
+        },
+        {
+            "params": params_other,
+            "lr": default_lr,
+            "name": "other_params_group"
+        }
+    ]
+    
+    # 5. 实例化优化器
+    # 可以在这里根据 args.training 设置 weight_decay 等
+    optimizer = AdamW(optimizer_grouped_parameters, weight_decay=0.01)
+    
+    return optimizer, model
 
 # ------------------------------ mapping function to peft type ------------------------------
 
@@ -205,6 +289,7 @@ PEFT_TYPE_TO_FUNCTION_MAPPING = {
     "miss": apply_miss,
     "pissa": apply_pissa,
     "hra": apply_hra,
+    "milora_dual": apply_milora_dual, 
 }
 
 # ------------------------------ dispatch function to peft type ------------------------------

@@ -28,6 +28,10 @@ class PeftConfig:
     target_modules: List[str] = field(
         default_factory=lambda: ["q_proj", "v_proj", "k_proj", "o_proj", "up_proj", "down_proj"]
     )
+    # [NEW] 新增参数用于 MiLoRA Dual Mode
+    milora_mode: str = "standard" # "standard" or "dual"
+    lr_max: float = 2e-5 # Max 模式 (主成分) 的学习率，通常可以小一点以保持通用性
+    lr_min: float = 1e-4 # Min 模式 (长尾成分) 的学习率，通常大一点以快速适应新数据
 
 
 @dataclass
